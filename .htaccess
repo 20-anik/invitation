@@ -1,0 +1,84 @@
+# Anik & Augnai invitation: Apache config for the static export.
+#
+# `npm run build` copies this file into out/. Upload everything inside out/
+# (including this hidden file) to the site's web root, e.g. public_html/.
+# GitHub Pages ignores this file; it needs none of it.
+#
+# Each page is a folder with an index.html (out/boubhat/index.html), so:
+#   /                       -> 302 to /boubhat/ (Reception Ceremony)
+#   /boubhat                -> 301 to /boubhat/ (Apache's own folder redirect)
+#   /boubhat/               -> the page
+#   /bie/                   -> the Wedding Ceremony
+#   /boubhat/index.html     -> 301 to /boubhat/
+#   anything else missing   -> 404.html
+
+Options -Indexes -MultiViews
+DirectoryIndex index.html
+AddDefaultCharset UTF-8
+
+<IfModule mod_rewrite.c>
+  RewriteEngine On
+  # If the site lives in a subfolder (example.com/invite/), set RewriteBase to
+  # that folder and build with NEXT_PUBLIC_BASE_PATH set to it (see README).
+  RewriteBase /
+
+  # Always use HTTPS (also behind a proxy or CDN that sets X-Forwarded-Proto).
+  RewriteCond %{HTTPS} !=on
+  RewriteCond %{HTTP:X-Forwarded-Proto} !=https
+  RewriteRule ^ https://%{HTTP_HOST}%{REQUEST_URI} [R=301,L]
+
+  # The site opens on the Reception. Temporary, so the default can change.
+  RewriteRule ^(index\.html)?$ /boubhat/ [R=302,L]
+
+  # One address per page: /boubhat/index.html -> /boubhat/
+  RewriteCond %{THE_REQUEST} \s/+((?:[^?\s]*/)?)index\.html[?\s] [NC]
+  RewriteRule ^ /%1 [R=301,L,NE]
+</IfModule>
+
+ErrorDocument 404 /404.html
+
+# Keep dotfiles (.htaccess, .env and friends) private.
+<FilesMatch "^\.">
+  Require all denied
+</FilesMatch>
+
+# Types the build emits; some shared hosts miss the newer ones.
+<IfModule mod_mime.c>
+  AddType text/javascript .js .mjs
+  AddType text/css .css
+  AddType application/json .json
+  AddType image/svg+xml .svg
+  AddType font/woff2 .woff2
+  AddType font/woff .woff
+  AddType audio/mpeg .mp3
+  AddType application/manifest+json .webmanifest
+  AddCharset UTF-8 .html .txt .js .css .json
+</IfModule>
+
+<IfModule mod_deflate.c>
+  AddOutputFilterByType DEFLATE text/html text/plain text/css text/javascript application/javascript application/json image/svg+xml
+</IfModule>
+
+<IfModule mod_headers.c>
+  # Pages and their navigation data always check for a newer version, so
+  # edits show up as soon as they are uploaded.
+  <FilesMatch "\.(html|txt)$">
+    Header set Cache-Control "no-cache"
+  </FilesMatch>
+
+  # Fonts, audio and images: cache for a week.
+  <FilesMatch "\.(woff2?|mp3|ico|png|jpe?g|webp|avif|svg)$">
+    Header set Cache-Control "public, max-age=604800"
+  </FilesMatch>
+
+  # Build assets carry content hashes in their names: cache them for a year.
+  # <If> is applied after <FilesMatch>, so this wins for anything in there.
+  <If "%{REQUEST_URI} =~ m#^/_next/static/#">
+    Header set Cache-Control "public, max-age=31536000, immutable"
+  </If>
+
+  Header always set X-Content-Type-Options "nosniff"
+  Header always set Referrer-Policy "strict-origin-when-cross-origin"
+  Header always set X-Frame-Options "SAMEORIGIN"
+  Header always set Permissions-Policy "camera=(), microphone=(), geolocation=()"
+</IfModule>
